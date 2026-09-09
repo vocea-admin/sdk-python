@@ -1,0 +1,67 @@
+name: Publish to PyPI
+
+# Publica al empujar una etiqueta vX.Y.Z, o a mano desde la pestaña Actions.
+#
+# No usa ningún token: PyPI admite Trusted Publishing igual que npm, así que
+# la autenticación va por OIDC y no hay secreto que rotar ni que se pueda
+# filtrar.
+#
+# Requiere darlo de alta una vez en PyPI, en el proyecto:
+#   Publishing -> Add a new publisher -> GitHub
+#   Owner: vocea-admin | Repository: sdk-python | Workflow: publish.yml
+#
+# Mientras el paquete no exista todavía en PyPI, se da de alta como "pending
+# publisher" desde https://pypi.org/manage/account/publishing/ con los mismos
+# datos más el nombre del proyecto: vocea-sdk.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Verificar y publicar
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      # id-token es lo que permite a GitHub emitir el token OIDC que PyPI
+      # valida. Sin este permiso, la publicación cae al camino de token.
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias
+        run: python -m pip install --upgrade pip build pytest respx httpx
+
+      # La misma cadena que el CI: no se publica nada sin verificar.
+      - name: Tests
+        run: python -m pytest -q
+
+      - name: Comprobar que la etiqueta coincide con pyproject.toml
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          ETIQUETA="${GITHUB_REF_NAME#v}"
+          MANIFIESTO="$(python -c "
+          import tomllib
+          print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])
+          ")"
+          if [ "$ETIQUETA" != "$MANIFIESTO" ]; then
+            echo "La etiqueta dice $ETIQUETA y pyproject.toml dice $MANIFIESTO." >&2
+            echo "Publicar así dejaría la etiqueta apuntando a otra versión." >&2
+            exit 1
+          fi
+          echo "Etiqueta y manifiesto coinciden en $MANIFIESTO"
+
+      - name: Construir
+        run: python -m build
+
+      - name: Publicar
+        uses: pypa/gh-action-pypi-publish@release/v1

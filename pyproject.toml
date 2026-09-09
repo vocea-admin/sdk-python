@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vocea-sdk"
+version = "0.4.0"
+description = "Official Vocea SDK for Python: text-to-speech, voice cloning and transcription"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "vocea.app", email = "contact@vocea.app" }]
+keywords = ["tts", "text-to-speech", "speech-to-text", "voice-cloning", "vocea"]
+dependencies = ["httpx>=0.27"]
+
+# La ficha de PyPI se construye con esto. Sin clasificadores el paquete no
+# aparece en las búsquedas por lenguaje ni por estado de desarrollo, y sin
+# `readme` la página sale en blanco.
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Topic :: Multimedia :: Sound/Audio :: Speech",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://vocea.app"
+Repository = "https://github.com/vocea-admin/sdk-python"
+Issues = "https://github.com/vocea-admin/sdk-python/issues"
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "respx>=0.21"]
+
+# py.typed va dentro del paquete y hatchling lo incluye, pero declararlo aquí
+# deja constancia de que es intencionado: sin ese marcador, mypy ignora las
+# anotaciones de la librería en los proyectos que la usan.
+[tool.hatch.build.targets.wheel]
+packages = ["vocea_sdk"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Permite `pytest -q` sin instalar el paquete antes.
+pythonpath = ["."]
