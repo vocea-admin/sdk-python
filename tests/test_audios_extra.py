@@ -194,3 +194,60 @@ def test_advanced_params_de_otra_calidad_llega_como_vocea_error(cliente):
 
     assert excinfo.value.status_code == 400
     assert excinfo.value.error_code == "INVALID_ADVANCED_PARAMS"
+
+
+# ── Validaciones que ahorran la petición ───────────────────────────────────
+
+
+@respx.mock
+def test_generate_valida_el_rango_de_speed_antes_de_salir(cliente):
+    """El docstring prometía 0.5–1.5 y nadie lo comprobaba.
+
+    Un 3.0 gastaba la petición para acabar en un 400 de la API. params.py sí
+    valida sus rangos en local; esto lo deja coherente.
+    """
+    ruta = respx.post(f"{BASE_URL}/audios/generate")
+
+    for malo in (0.4, 1.6, 3.0, 0.0):
+        with pytest.raises(ValueError, match="speed"):
+            cliente.audios.generate(
+                voice_id="voz-1", text="Hola", language_code="es", speed=malo
+            )
+
+    assert not ruta.called
+
+
+@respx.mock
+def test_generate_acepta_los_extremos_del_rango_de_speed(cliente, audio_json):
+    """Los límites son válidos: la validación no debe pasarse de estricta."""
+    ruta = respx.post(f"{BASE_URL}/audios/generate").mock(
+        return_value=httpx.Response(201, json=audio_json)
+    )
+
+    for bueno in (0.5, 1.0, 1.5):
+        cliente.audios.generate(
+            voice_id="voz-1", text="Hola", language_code="es", speed=bueno
+        )
+
+    assert ruta.call_count == 3
+
+
+@respx.mock
+def test_generate_distingue_cadena_vacia_de_ausencia(cliente):
+    """Una cadena vacía es un error del llamante, no una ausencia.
+
+    Con la comprobación por truthiness, `voice_id=""` se leía como «no lo he
+    indicado» y el usuario recibía el error genérico de exclusión mutua, que
+    manda a mirar donde no es.
+    """
+    ruta = respx.post(f"{BASE_URL}/audios/generate")
+
+    with pytest.raises(ValueError, match="cadena vacía"):
+        cliente.audios.generate(voice_id="", text="Hola", language_code="es")
+
+    with pytest.raises(ValueError, match="cadena vacía"):
+        cliente.audios.generate(
+            provider_voice_id="", text="Hola", language_code="es"
+        )
+
+    assert not ruta.called

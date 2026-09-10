@@ -45,10 +45,22 @@ class AudiosResource:
             ValueError: si no se indica ni `voice_id` ni `provider_voice_id`, o
                 si se indican los dos.
         """
-        if bool(voice_id) == bool(provider_voice_id):
+        # `is None` y no truthiness: una cadena vacía es un error del llamante,
+        # no una ausencia, y merece un mensaje que lo diga en vez del genérico.
+        if voice_id == "" or provider_voice_id == "":
+            raise ValueError(
+                "voice_id y provider_voice_id no pueden ser una cadena vacía; "
+                "omite el que no uses"
+            )
+        if (voice_id is None) == (provider_voice_id is None):
             raise ValueError(
                 "generate requiere voice_id o provider_voice_id, pero no ambos"
             )
+        # El rango lo impone la API y el docstring lo prometía, pero nadie lo
+        # comprobaba: un 3.0 gastaba la petición para acabar en un 400.
+        # params.py sí valida sus rangos; esto lo deja coherente.
+        if not 0.5 <= speed <= 1.5:
+            raise ValueError(f"speed tiene que estar entre 0.5 y 1.5: {speed}")
         body: dict[str, Any] = {
             "text": text,
             "language_code": language_code,
