@@ -235,6 +235,17 @@ pip install -e ".[dev]"
 pytest -q
 ```
 
+## Fixed in 0.4.1
+
+Two validations that now happen before the request leaves, so a mistake costs
+nothing instead of a round trip and a 400:
+
+- `speed` was documented as 0.5–1.5 and never checked. Sending 3.0 spent the
+  request to be rejected by the API.
+- `voice_id` and `provider_voice_id` were checked by truthiness, so
+  `voice_id=""` read as "not provided" and you got the generic mutual-exclusion
+  error, which points at the wrong thing. An empty string now says so.
+
 ## New in 0.4.0
 
 The SDK covered 24 of the 42 methods the API exposes. Two of those gaps left it
