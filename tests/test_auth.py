@@ -7,6 +7,7 @@ emitir una clave.
 
 from __future__ import annotations
 
+import inspect
 import json
 from typing import Any
 
@@ -16,6 +17,7 @@ import respx
 
 from vocea_sdk import VoceaError
 from vocea_sdk.models import User
+from vocea_sdk.resources.auth import AuthResource
 
 from .conftest import BASE_URL, SALDO_EXACTO
 
@@ -122,6 +124,101 @@ def test_register_incluye_referral_code_cuando_se_pasa(cliente):
     )
 
     assert cuerpo(ruta.calls.last.request)["referral_code"] == "AFIL123"
+
+
+@respx.mock
+def test_register_sin_accept_terms_manda_el_cuerpo_de_siempre(cliente):
+    """El SDK se publica antes de que el backend exija `accept_terms`, y el
+    backend de hoy rechaza cualquier propiedad desconocida: si el campo viajara
+    (aunque fuera `false`), todas las altas fallarían con un 400."""
+    ruta = respx.post(f"{BASE_URL}/auth/register").mock(
+        return_value=httpx.Response(201, json={"message": "Cuenta creada."})
+    )
+
+    cliente.auth.register(
+        full_name="Juan Pérez",
+        email="juan@example.com",
+        password="Contraseña123!",
+        birth_year=1990,
+    )
+    cliente.auth.register(
+        full_name="Juan Pérez",
+        email="juan@example.com",
+        password="Contraseña123!",
+        birth_year=1990,
+        accept_terms=False,
+    )
+
+    for llamada in ruta.calls:
+        assert cuerpo(llamada.request) == {
+            "full_name": "Juan Pérez",
+            "email": "juan@example.com",
+            "password": "Contraseña123!",
+            "birth_year": 1990,
+        }
+
+
+@respx.mock
+def test_register_con_accept_terms_incluye_el_campo_en_true(cliente):
+    """Aceptar los términos es un acto de la persona: solo viaja cuando quien
+    llama lo pasó explícitamente como verdadero."""
+    ruta = respx.post(f"{BASE_URL}/auth/register").mock(
+        return_value=httpx.Response(201, json={"message": "Cuenta creada."})
+    )
+
+    cliente.auth.register(
+        full_name="Juan Pérez",
+        email="juan@example.com",
+        password="Contraseña123!",
+        birth_year=1990,
+        referral_code="AFIL123",
+        accept_terms=True,
+    )
+
+    assert cuerpo(ruta.calls.last.request) == {
+        "full_name": "Juan Pérez",
+        "email": "juan@example.com",
+        "password": "Contraseña123!",
+        "birth_year": 1990,
+        "referral_code": "AFIL123",
+        "accept_terms": True,
+    }
+
+
+def test_accept_terms_nunca_es_verdadero_por_omision():
+    """Si alguien cambiara el valor por omisión a `True`, el SDK aceptaría los
+    términos en nombre de la persona."""
+    por_omision = inspect.signature(AuthResource.register).parameters["accept_terms"]
+
+    assert por_omision.default is False
+
+
+@pytest.mark.parametrize("estado", [400, 422])
+@respx.mock
+def test_register_sin_aceptar_los_terminos_lanza_el_error_de_validacion(
+    cliente, estado
+):
+    """Cuando el backend exija `accept_terms`, el desarrollador ve el mensaje del
+    servidor intacto en el `VoceaError` de siempre, sin un tipo de error nuevo."""
+    mensaje = "Debes aceptar los Términos de Servicio y la Política de Privacidad"
+    respx.post(f"{BASE_URL}/auth/register").mock(
+        return_value=httpx.Response(
+            estado,
+            json={"statusCode": estado, "message": [mensaje], "error": "Bad Request"},
+        )
+    )
+
+    with pytest.raises(VoceaError) as error:
+        cliente.auth.register(
+            full_name="Juan Pérez",
+            email="juan@example.com",
+            password="Contraseña123!",
+            birth_year=1990,
+        )
+
+    assert error.value.status_code == estado
+    assert error.value.body["message"] == [mensaje]
+    assert mensaje in str(error.value)
 
 
 @respx.mock
