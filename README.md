@@ -125,6 +125,39 @@ print(client.users.create_api_key().apiKey)
 same whether or not the address exists — telling them apart would let anyone
 check which emails are registered.
 
+### Registering an account and accepting the terms
+
+```python
+from vocea_sdk import VoceaClient, VoceaError
+
+client = VoceaClient(api_key="")
+try:
+    message = client.auth.register(
+        full_name="Ada Lovelace",
+        email="ada@example.com",
+        password="a-strong-password",
+        birth_year=1990,
+        accept_terms=True,  # only after the person has accepted the terms
+    )
+except VoceaError as e:
+    # Without acceptance the API answers 400/422 and the server's message
+    # reaches you untouched: "Debes aceptar los Términos de Servicio y la
+    # Política de Privacidad".
+    print(e.status_code, e)
+```
+
+`accept_terms=True` means the person signing up has read and expressly accepted
+Vocea's Terms of Service and Privacy Policy. Accepting is that person's act, so
+the SDK never does it for them: the default is `False`, and in that case the
+field is not sent at all (the request body is exactly what it was before 0.5.0).
+`accept_terms=True` is the only value that adds `"accept_terms": true` to the
+body. Show your users the terms and collect their consent before passing it.
+
+Until the Vocea API starts requiring it, the parameter is optional. Once it
+does, calling `register` without it fails with a `VoceaError` (status 400 or
+422) carrying the message above; the fix is to ask for acceptance in your sign-up
+flow and pass `accept_terms=True`.
+
 ## Advanced generation parameters
 
 Each quality tier takes its own parameters, and sending one from another tier
@@ -234,6 +267,15 @@ except VoceaError as e:
 pip install -e ".[dev]"
 pytest -q
 ```
+
+## New in 0.5.0
+
+- `auth.register(..., accept_terms=False)`: new optional last parameter. Pass
+  `True` only when the person signing up has accepted Vocea's Terms of Service
+  and Privacy Policy; the SDK never accepts on their behalf. When omitted or
+  `False` the request body is identical to 0.4.x, so this version keeps working
+  against an API that does not know the field yet. See
+  [Registering an account and accepting the terms](#registering-an-account-and-accepting-the-terms).
 
 ## Fixed in 0.4.1
 

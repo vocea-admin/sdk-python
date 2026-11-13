@@ -23,11 +23,21 @@ class AuthResource:
         password: str,
         birth_year: int,
         referral_code: Optional[str] = None,
+        accept_terms: bool = False,
     ) -> str:
         """Crea una cuenta y devuelve el mensaje de confirmación.
 
         No devuelve una sesión: hay que verificar el correo antes de entrar.
         `birth_year` es obligatorio porque la plataforma no admite menores.
+
+        `accept_terms=True` declara que la persona que se registra ha leído y
+        aceptado los Términos de Servicio y la Política de Privacidad de Vocea.
+        Aceptarlos es un acto de esa persona: el SDK nunca lo hace por ella, así
+        que el valor por omisión es `False` y en ese caso el campo no viaja en la
+        petición. Mientras el backend no lo exija es opcional; cuando lo exija,
+        omitirlo hace que la API responda 400/422 y se lance `VoceaError` con el
+        mensaje del servidor («Debes aceptar los Términos de Servicio y la
+        Política de Privacidad»).
         """
         body: dict[str, Any] = {
             "full_name": full_name,
@@ -37,6 +47,8 @@ class AuthResource:
         }
         if referral_code:
             body["referral_code"] = referral_code
+        if accept_terms is True:
+            body["accept_terms"] = True
         d = self._http.request("POST", "/auth/register", json=body)
         return (d or {}).get("message", "")
 
